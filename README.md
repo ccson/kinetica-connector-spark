@@ -130,3 +130,4 @@ Writing to a *GPUdb* table::
 		final GPUdbWriter<TwitterRecord> writer = new GPUdbWriter<TwitterRecord>(sparkConf);
 		writer.write(dstream);
 
+
