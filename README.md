@@ -1,3 +1,11 @@
+GPUdb Spark Connector
+======================
+
+The documentation can be found at http://www.gpudb.com/docs/5.1/index.html. The connector specific documentation can be found at:
+
+*   www.gpudb.com/docs/5.1/connectors/spark_guide.html
+
+
 Spark Developer Manual
 ======================
 
