@@ -20,14 +20,14 @@ public class PersonRecord extends RecordObject implements Serializable
 	private static final long serialVersionUID = 3767889270386618741L;
 
 	/** Unique ID of person */
-	@RecordObject.Column(order = 0, properties = { ColumnProperty.DATA })
+	@RecordObject.Column(order = 0, properties = { ColumnProperty.DATA, ColumnProperty.PRIMARY_KEY })
 	public long id;
 
 	/** Name of person */
 	@RecordObject.Column(order = 1) 
 	public String name;		
 
-	/** Data of birth of person, in milliseconds since the epoch */
+	/** Date of birth of person, in milliseconds since the epoch */
 	@RecordObject.Column(order = 2) 
 	public long birthDate;   
 	
