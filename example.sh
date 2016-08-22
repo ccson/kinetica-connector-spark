@@ -2,7 +2,7 @@
 
 exampleHome=$(cd $(dirname $0);pwd)
 exampleConfigFile=${exampleHome}/example.properties
-exampleLib=$(ls -tr ${exampleHome}/gpudb-spark*jar 2>/dev/null | tail -1)
+exampleLib=$(ls -tr ${exampleHome}/gpudb-spark-*-shaded.jar 2>/dev/null | tail -1)
 
 sparkPort=7077
 
@@ -75,6 +75,12 @@ shift $((OPTIND-1))
 sparkUrl=spark://${sparkHost}:${sparkPort}
 
 [ -z "${sparkHost}" ] && usage
+
+if [ -z "${SPARK_HOME}" ]
+then
+	printf "[ERROR] SPARK_HOME environment variable not set\n"
+	exit 2
+fi
 
 if [ -z "${exampleLib}" ]
 then

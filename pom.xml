@@ -10,9 +10,10 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<gpudb-api.version>5.2.0</gpudb-api.version>
-		<avro.version>1.7.7</avro.version>
+		<avro.version>1.8.0</avro.version>
 		<spark.version>1.5.2</spark.version>
-		<zeromq.version>3.1.0</zeromq.version>
+		<zeromq.version>0.3.5</zeromq.version>
+		<lorem.version>1.2</lorem.version>
 		<slf4j.version>1.7.12</slf4j.version>
 		<junit.version>4.11</junit.version>
 		<java.version>1.7</java.version>
@@ -79,6 +80,12 @@
 							<goal>shade</goal>
 						</goals>
 						<configuration>
+							<relocations>
+								<relocation>
+									<pattern>org.apache.avro</pattern>
+									<shadedPattern>shaded.org.apache.avro</shadedPattern>
+								</relocation>
+							</relocations>
 							<shadedArtifactAttached>true</shadedArtifactAttached>
 							<shadedClassifierName>shaded</shadedClassifierName>
 							<filters>
@@ -147,12 +154,18 @@
 
 
 
-        <dependency>
-                <groupId>org.zeromq</groupId>
-                <artifactId>jeromq</artifactId>
-                <version>0.3.5</version>
-        </dependency>
+		<dependency>
+			<groupId>org.zeromq</groupId>
+			<artifactId>jeromq</artifactId>
+			<version>${zeromq.version}</version>
+		</dependency>
         
+		<dependency>
+			<groupId>com.thedeanda</groupId>
+			<artifactId>lorem</artifactId>
+			<version>${lorem.version}</version>
+		</dependency>
+
 
 		<dependency>
 			<groupId>org.slf4j</groupId>

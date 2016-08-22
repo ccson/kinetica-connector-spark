@@ -1,10 +1,16 @@
 GPUdb Spark Connector Changelog
 ===============================
 
-Version 5.2.0 - 2016-06-25
+
+Version 5.2.0 - 2016-08-22
 --------------------------
 
--   Maintenance.
+-   Updated to new GPUdb API v5.2.0
+-   Added batched & partitioned reads & writes
+-   Various bug fixes
+-   Updated Avro from 1.7.7 to 1.8.0; shaded Avro to not conflict with Spark's Avro
+-   Changed run script to always use shaded JAR
+-   Updated documentation
 
 
 Version 5.1.0 - 2016-05-11

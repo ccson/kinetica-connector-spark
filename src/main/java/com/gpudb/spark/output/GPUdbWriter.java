@@ -1,7 +1,6 @@
 package com.gpudb.spark.output;
 
 import com.gpudb.GPUdb;
-import com.gpudb.GPUdbException;
 import com.gpudb.RecordObject;
 import com.gpudb.protocol.InsertRecordsRequest;
 
@@ -91,16 +90,22 @@ public class GPUdbWriter<T extends RecordObject> implements Serializable
 	 */
 	public void write(JavaRDD<T> rdd)
 	{
-		rdd.foreach
+		rdd.foreachPartition
 		(
-			new VoidFunction<T>()
+			new VoidFunction<Iterator<T>>()
 			{
-				private static final long serialVersionUID = -2760985947788423672L;
-	
+				private static final long serialVersionUID = 1519062387719363984L;
+				
 				@Override
-				public void call(T t) throws Exception
+				public void call(Iterator<T> tSet)
 				{
-					write(t);
+					while (tSet.hasNext())
+					{
+						T t = tSet.next();
+						if (t != null)
+							write(t);
+					}
+					flush();
 				}
 			}
 		);
@@ -153,40 +158,38 @@ public class GPUdbWriter<T extends RecordObject> implements Serializable
 	 */
 	public void write(T t)
 	{
+		records.add(t);
+		log.debug("Added <{}> to write queue", t);
+
+		if (records.size() >= insertSize)
+			flush();
+	}
+
+	/**
+	 * Flushes the set of accumulated records, writing them to GPUdb
+	 */
+	public void flush()
+	{
 		try
 		{
-			records.add(t);
-			log.debug("Added <{}> to write queue", t);
-
-			if (records.size() >= insertSize)
-				flush();
+			log.debug("Creating new GPUdb...");
+			GPUdb gpudb = new GPUdb("http://" + host + ":" + port, new GPUdb.Options().setThreadCount(threads));
+	
+			List<T> recordsToInsert = records;
+			records = new ArrayList<T>();
+	
+			log.info("Writing <{}> records to table <{}>", recordsToInsert.size(), tableName);
+			for (T record : recordsToInsert)
+				log.debug("    Array Item: <{}>", record);
+	
+			InsertRecordsRequest<T> insertRequest = new InsertRecordsRequest<T>();
+			insertRequest.setData(recordsToInsert);
+			insertRequest.setTableName(tableName);
+			gpudb.insertRecords(insertRequest);
 		}
 		catch (Exception ex)
 		{
 			log.error("Problem writing record(s)", ex);
 		}
-	}
-
-	/**
-	 * Flushes the set of accumulated records, writing them to GPUdb
-	 * 
-	 * @throws GPUdbException if record inserts fail
-	 */
-	public void flush() throws GPUdbException
-	{
-		log.debug("Creating new GPUdb...");
-		GPUdb gpudb = new GPUdb("http://" + host + ":" + port, new GPUdb.Options().setThreadCount(threads));
-
-		List<T> recordsToInsert = records;
-		records = new ArrayList<T>();
-
-		log.info("Writing <{}> records to table <{}>", recordsToInsert.size(), tableName);
-		for (T record : recordsToInsert)
-			log.debug("    Array Item: <{}>", record);
-
-		InsertRecordsRequest<T> insertRequest = new InsertRecordsRequest<T>();
-		insertRequest.setData(recordsToInsert);
-		insertRequest.setTableName(tableName);
-		gpudb.insertRecords(insertRequest);
 	}
 }
