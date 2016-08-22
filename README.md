@@ -3,7 +3,7 @@ GPUdb Spark Connector
 
 The documentation can be found at http://www.gpudb.com/docs/5.2/index.html. The connector specific documentation can be found at:
 
-*   www.gpudb.com/docs/5.2/connectors/spark_guide.html
+*   <http://www.gpudb.com/docs/5.2/connectors/spark_guide.html>
 
 For changes to the connector API, please refer to CHANGELOG.md.  For changes to GPUdb functions, please refer to CHANGELOG-FUNCTIONS.md.
 
@@ -51,6 +51,7 @@ The *GPUdb Spark* connector uses the *Spark* configuration to pass *GPUdb* insta
 * ``gpudb.port`` - The port number on which the *GPUdb* service is listening
 * ``gpudb.threads`` - The number of threads *GPUdb* should use
 * ``gpudb.table`` - The name of the *GPUdb* table being accessed
+* ``gpudb.read.size`` - The number of records to read at a time from *GPUdb*
 
 ``GPUdbWriter``
 
@@ -69,27 +70,27 @@ Loading Data from GPUdb into a Spark RDD
 
 To read from a *GPUdb* table, create a class that extends ``RecordObject`` and implements ``Serializable``. For example::
 
-      public class PersonRecord extends RecordObject implements Serializable
-      {
-         @RecordObject.Column(order = 0, properties = { ColumnProperty.DATA })
-         public long id;
+		public class PersonRecord extends RecordObject implements Serializable
+		{
+			@RecordObject.Column(order = 0, properties = { ColumnProperty.DATA })
+			public long id;
 
-         @RecordObject.Column(order = 1) 
-         public String name;        
+			@RecordObject.Column(order = 1)
+			public String name;
 
-         @RecordObject.Column(order = 2) 
-         public long birthDate;   
+			@RecordObject.Column(order = 2, properties = { ColumnProperty.TIMESTAMP })
+			public long birthDate;
 
-         public PersonRecord(){}
-      }
+			public PersonRecord(){}
+		}
 
 
 Note: The column order specified in the class must correspond to the table schema.
 
 Next, instantiate a ``GPUdbReader`` for that class and call the ``readTable`` method with an optional filter ``expression``::
 
-      GPUdbReader<PersonRecord> reader = new GPUdbReader<PersonRecord>(sparkConf);
-      JavaRDD<PersonRecord> rdd = reader.readTable(PersonRecord.class, "PeopleTable", expression, sparkContext);
+		GPUdbReader<PersonRecord> reader = new GPUdbReader<PersonRecord>(sparkConf);
+		JavaRDD<PersonRecord> rdd = reader.readTable(PersonRecord.class, expression, sparkContext);
 
 The ``expression`` in the ``readTable`` call is equivalent to a SQL ``WHERE`` clause.  For details, read the *Expressions* section of the *Concepts* page.
 
@@ -101,12 +102,12 @@ Saving Data from a Spark RDD to GPUdb
 -------------------------------------
 Creating a *GPUdb* table::
 
-      GPUdbUtil.createTable(gpudbUrl, tableName, PersonRecord.class);
+		GPUdbUtil.createTable(gpudbUrl, collectionName, tableName, PersonRecord.class);
 
 Writing to a *GPUdb* table::
 
-      final GPUdbWriter<PersonRecord> writer = new GPUdbWriter<PersonRecord>(sparkConf);
-      writer.write(rdd);
+		final GPUdbWriter<PersonRecord> writer = new GPUdbWriter<PersonRecord>(sparkConf);
+		writer.write(rdd);
 
 
 -----
@@ -116,9 +117,9 @@ Receiving Data from GPUdb into a Spark DStream
 ----------------------------------------------
 The following creates a ``DStream`` from any new data inserted into the table ``tableName``::
 
-      GPUdbReceiver receiver = new GPUdbReceiver(gpudbUrl, gpudbStreamUrl, tableName);
+		GPUdbReceiver receiver = new GPUdbReceiver(gpudbUrl, gpudbStreamUrl, tableName);
 
-      JavaReceiverInputDStream<AvroWrapper> dstream = javaStreamingContext.receiverStream(receiver);
+		JavaReceiverInputDStream<AvroWrapper> dstream = javaStreamingContext.receiverStream(receiver);
 
 Each record in the ``DStream`` is of type ``AvroWrapper``, which is an *Avro* object along with its schema to decode it.
 
@@ -132,12 +133,12 @@ Saving Data from a Spark DStream to GPUdb
 -----------------------------------------
 Creating a *GPUdb* table::
 
-      GPUdbUtil.createTable(gpudbUrl, tableName, PersonRecord.class);
+		GPUdbUtil.createTable(gpudbUrl, collectionName, tableName, PersonRecord.class);
 
 Writing to a *GPUdb* table::
 
-      final GPUdbWriter<PersonRecord> writer = new GPUdbWriter<PersonRecord>(sparkConf);
-      writer.write(dstream);
+		final GPUdbWriter<PersonRecord> writer = new GPUdbWriter<PersonRecord>(sparkConf);
+		writer.write(dstream);
 
 
 -----

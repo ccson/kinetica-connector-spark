@@ -24,12 +24,12 @@ public class PersonRecord extends RecordObject implements Serializable
 	public long id;
 
 	/** Name of person */
-	@RecordObject.Column(order = 1) 
-	public String name;		
+	@RecordObject.Column(order = 1)
+	public String name;
 
 	/** Date of birth of person, in milliseconds since the epoch */
-	@RecordObject.Column(order = 2) 
-	public long birthDate;   
+	@RecordObject.Column(order = 2, properties = { ColumnProperty.TIMESTAMP })
+	public long birthDate;
 	
 	/**
 	 * Creates a person with no values specified

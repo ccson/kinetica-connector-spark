@@ -51,9 +51,11 @@ public final class StreamExample implements Serializable
 	private static final String PROP_GPUDB_STREAM_PORT = "gpudb.port.stream";
 	private static final String PROP_GPUDB_THREADS = "gpudb.threads";
 	private static final String PROP_SPARK_CORES_MAX = "spark.cores.max";
+	private static final String PROP_SPARK_EXECUTOR_MEMORY = "spark.executor.memory";
 	
 	private static final int NEW_DATA_INTERVAL_SECS = 10;
 	private static final int STREAM_POLL_INTERVAL_SECS = NEW_DATA_INTERVAL_SECS;
+	private static final String[] peopleNames = new String[]{ "John", "Anna", "Andrew" };
 
 	private String sparkAppName;
 	private String gpudbHost;
@@ -62,10 +64,11 @@ public final class StreamExample implements Serializable
 	private String gpudbStreamUrl;
 	private int gpudbThreads;
 	private int sparkCoresMax;
+	private String sparkExecutorMemory;
+	private String gpudbCollectionName;
 	private String gpudbSourceTableName;
 	private String gpudbTargetTableName;
-	
-	List<PersonRecord> people = new ArrayList<>();
+
 
 
 	/**
@@ -74,15 +77,23 @@ public final class StreamExample implements Serializable
 	private StreamExample()
 	{
 		sparkAppName = getClass().getSimpleName();
-		gpudbSourceTableName = "Spark." + sparkAppName + ".Source";
-		gpudbTargetTableName = "Spark." + sparkAppName + ".Target";
+		gpudbCollectionName = "SparkExamples";
+		gpudbSourceTableName = sparkAppName + ".Source";
+		gpudbTargetTableName = sparkAppName + ".Target";
+
+	}
+
+	private static List<PersonRecord> getMorePeople()
+	{
+		List<PersonRecord> people = new ArrayList<PersonRecord>();
 
 		// Create test records
-		people.add(new PersonRecord(ThreadLocalRandom.current().nextInt(0, Integer.MAX_VALUE), "John", System.currentTimeMillis()));
-		people.add(new PersonRecord(ThreadLocalRandom.current().nextInt(0, Integer.MAX_VALUE), "Anna", System.currentTimeMillis()));
-		people.add(new PersonRecord(ThreadLocalRandom.current().nextInt(0, Integer.MAX_VALUE), "Andrew", System.currentTimeMillis()));
+		for (String personName : peopleNames)
+			people.add(new PersonRecord(ThreadLocalRandom.current().nextInt(0, Integer.MAX_VALUE), personName, System.currentTimeMillis()));
+		
+		return people;
 	}
-	
+
 	/**
 	 * Loads Spark application configuration using the given file
 	 * 
@@ -103,6 +114,7 @@ public final class StreamExample implements Serializable
 			gpudbStreamUrl = "tcp://" + gpudbHost + ":" + Integer.parseInt(props.getProperty(PROP_GPUDB_STREAM_PORT));
 			gpudbThreads = Integer.parseInt(props.getProperty(PROP_GPUDB_THREADS));
 			sparkCoresMax = Integer.parseInt(props.getProperty(PROP_SPARK_CORES_MAX));
+			sparkExecutorMemory = props.getProperty(PROP_SPARK_EXECUTOR_MEMORY);
 
 			log.info("Using GPUdb: <" + gpudbUrl + "," + gpudbSourceTableName + "," + gpudbTargetTableName + ">");
 		}
@@ -115,14 +127,17 @@ public final class StreamExample implements Serializable
 	 */
 	private JavaSparkContext connectSpark()
 	{
+		// Setting insert size to "1" to avoid non-flushing due to
+		//   low-throughput streaming
 		SparkConf conf = new SparkConf()
 			.setAppName(sparkAppName)
 			.set("spark.cores.max", String.valueOf(sparkCoresMax))
-			.set("spark.executor.memory", "4g")
+			.set("spark.executor.memory", sparkExecutorMemory)
 			.set(GPUdbWriter.PROP_GPUDB_HOST,  gpudbHost)
 			.set(GPUdbWriter.PROP_GPUDB_PORT, String.valueOf(gpudbPort))
 			.set(GPUdbWriter.PROP_GPUDB_THREADS, String.valueOf(gpudbThreads))
-			.set(GPUdbWriter.PROP_GPUDB_TABLE_NAME, gpudbTargetTableName);
+			.set(GPUdbWriter.PROP_GPUDB_TABLE_NAME, gpudbTargetTableName)
+			.set(GPUdbWriter.PROP_GPUDB_INSERT_SIZE, "1");
 
 		JavaSparkContext sc = new JavaSparkContext(conf);
 
@@ -146,7 +161,7 @@ public final class StreamExample implements Serializable
 					.set(GPUdbWriter.PROP_GPUDB_HOST,  gpudbHost)
 					.set(GPUdbWriter.PROP_GPUDB_PORT, String.valueOf(gpudbPort))
 					.set(GPUdbWriter.PROP_GPUDB_THREADS, String.valueOf(gpudbThreads))
-					.set(GPUdbWriter.PROP_GPUDB_INSERT_SIZE, String.valueOf(people.size()))
+					.set(GPUdbWriter.PROP_GPUDB_INSERT_SIZE, String.valueOf(peopleNames.length))
 					.set(GPUdbWriter.PROP_GPUDB_TABLE_NAME, gpudbSourceTableName);
 
 				final GPUdbWriter<PersonRecord> writer = new GPUdbWriter<PersonRecord>(conf);
@@ -158,7 +173,7 @@ public final class StreamExample implements Serializable
 						Thread.sleep(NEW_DATA_INTERVAL_SECS * 1000);
 
 						// Add records to process
-						for (PersonRecord person : people)
+						for (PersonRecord person : getMorePeople())
 							writer.write(person);
 					}
 				}
@@ -179,8 +194,8 @@ public final class StreamExample implements Serializable
 	private void runTest() throws GPUdbException
 	{
 		// Create source & destination tables in GPUdb for streaming processing
-		GPUdbUtil.createTable(gpudbUrl, gpudbSourceTableName, PersonRecord.class);
-		GPUdbUtil.createTable(gpudbUrl, gpudbTargetTableName, PersonRecord.class);
+		GPUdbUtil.createTable(gpudbUrl, gpudbCollectionName, gpudbSourceTableName, PersonRecord.class);
+		GPUdbUtil.createTable(gpudbUrl, gpudbCollectionName, gpudbTargetTableName, PersonRecord.class);
 
 		// Launch background process for adding records to source table for
 		//   table monitor to queue to the data stream
