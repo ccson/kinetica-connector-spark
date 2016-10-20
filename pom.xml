@@ -26,12 +26,12 @@
 		<repository>
 			<id>gisfed-releases</id>
 			<name>GISFederal Release Nexus</name>
-			<url>http://gpudb.com/nexus/content/repositories/releases/</url>
+			<url>http://files.kinetica.com/nexus/content/repositories/releases/</url>
 		</repository>
 		<repository>
 			<id>gisfed-snapshots</id>
 			<name>GISFederal Snapshot Nexus</name>
-			<url>http://gpudb.com/nexus/content/repositories/snapshots/</url>
+			<url>http://files.kinetica.com/nexus/content/repositories/snapshots/</url>
 		</repository>
 	</repositories>
 
