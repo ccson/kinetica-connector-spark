@@ -1,6 +1,11 @@
 GPUdb Spark Connector Changelog
 ===============================
 
+Version 5.4.0 - 2016-11-29
+--------------------------
+
+-   Releasing new version
+
 
 Version 5.2.0 - 2016-08-22
 --------------------------
