@@ -1,9 +1,9 @@
 Kinetica Spark Connector
 ========================
 
-The documentation can be found at http://www.kinetica.com/docs/5.2/index.html. The connector specific documentation can be found at:
+The documentation can be found at http://www.kinetica.com/docs/6.0/index.html. The connector specific documentation can be found at:
 
-*   <http://www.kinetica.com/docs/5.2/connectors/spark_guide.html>
+*   <http://www.kinetica.com/docs/6.0/connectors/spark_guide.html>
 
 For changes to the connector API, please refer to CHANGELOG.md.  For changes to Kinetica functions, please refer to CHANGELOG-FUNCTIONS.md.
 
@@ -169,10 +169,10 @@ Once this RPM is installed, the following files should exist::
 
         /opt/gpudb/connectors/spark/example.properties
         /opt/gpudb/connectors/spark/example.sh
-        /opt/gpudb/connectors/spark/gpudb-spark-5.2.0.jar
-        /opt/gpudb/connectors/spark/gpudb-spark-5.2.0-jar-with-dependencies.jar
-        /opt/gpudb/connectors/spark/gpudb-spark-5.2.0-node-assembly.jar
-        /opt/gpudb/connectors/spark/gpudb-spark-5.2.0-shaded.jar
+        /opt/gpudb/connectors/spark/gpudb-spark-6.0.0.jar
+        /opt/gpudb/connectors/spark/gpudb-spark-6.0.0-jar-with-dependencies.jar
+        /opt/gpudb/connectors/spark/gpudb-spark-6.0.0-node-assembly.jar
+        /opt/gpudb/connectors/spark/gpudb-spark-6.0.0-shaded.jar
         /opt/gpudb/connectors/spark/README.md
 
 The ``gpudb.host`` property in ``example.properties`` should be modified to be the name of the *Kinetica* host being accessed.

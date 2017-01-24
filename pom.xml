@@ -9,7 +9,7 @@
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<gpudb-api.version>5.4.0</gpudb-api.version>
+		<gpudb-api.version>6.0.0</gpudb-api.version>
 		<avro.version>1.8.0</avro.version>
 		<spark.version>1.5.2</spark.version>
 		<zeromq.version>0.3.5</zeromq.version>
