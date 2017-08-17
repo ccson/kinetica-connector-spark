@@ -212,17 +212,17 @@ To install the example, the *Spark* connector RPM needs to be deployed onto the
 where ``<X.Y.Z>`` is the *Kinetica* version and ``<YYYYMMDDhhmmss>`` is the
 build date::
 
-   sudo yum -y install kinetica-connector-spark-<X.Y.Z>-<YYYYMMDDhhmmss>.noarch.rpm
+      sudo yum -y install kinetica-connector-spark-<X.Y.Z>-<YYYYMMDDhhmmss>.noarch.rpm
 
 Once this RPM is installed, the following files should exist::
 
-   /opt/gpudb/connectors/spark/example.properties
-   /opt/gpudb/connectors/spark/example.sh
-   /opt/gpudb/connectors/spark/gpudb-spark-6.0.1.jar
-   /opt/gpudb/connectors/spark/gpudb-spark-6.0.1-jar-with-dependencies.jar
-   /opt/gpudb/connectors/spark/gpudb-spark-6.0.1-node-assembly.jar
-   /opt/gpudb/connectors/spark/gpudb-spark-6.0.1-shaded.jar
-   /opt/gpudb/connectors/spark/README.md
+      /opt/gpudb/connectors/spark/example.properties
+      /opt/gpudb/connectors/spark/example.sh
+      /opt/gpudb/connectors/spark/gpudb-spark-6.0.1.jar
+      /opt/gpudb/connectors/spark/gpudb-spark-6.0.1-jar-with-dependencies.jar
+      /opt/gpudb/connectors/spark/gpudb-spark-6.0.1-node-assembly.jar
+      /opt/gpudb/connectors/spark/gpudb-spark-6.0.1-shaded.jar
+      /opt/gpudb/connectors/spark/README.md
 
 The ``gpudb.host`` property in ``example.properties`` should be modified to
 be the name of the *Kinetica* host being accessed.
@@ -230,4 +230,4 @@ be the name of the *Kinetica* host being accessed.
 To run the example, issue this *Unix* command with no parameters to display
 usage information::
 
-   ./example.sh
+      ./example.sh
