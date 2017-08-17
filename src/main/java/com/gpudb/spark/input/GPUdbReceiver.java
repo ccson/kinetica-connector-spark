@@ -96,7 +96,9 @@ public class GPUdbReceiver extends Receiver<AvroWrapper>
 			objectType = Type.fromTable(gpudb, tableName);
 
 			// Attach to table monitor streaming data queue
+			@SuppressWarnings("resource")
 			ZMQ.Context zmqContext = ZMQ.context(1); 
+			@SuppressWarnings("resource")
 			Socket subscriber = zmqContext.socket(ZMQ.SUB);
 			subscriber.connect(zmqURL);
 			subscriber.subscribe(topicID.getBytes());

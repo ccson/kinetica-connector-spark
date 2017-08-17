@@ -7,7 +7,7 @@ import java.util.Enumeration;
 
 import com.gpudb.GPUdb;
 import com.gpudb.GPUdbException;
-import com.gpudb.RecordObject;
+import com.gpudb.Type;
 import com.gpudb.protocol.CreateTableRequest;
 
 import org.apache.hadoop.conf.Configuration;
@@ -84,12 +84,12 @@ public class GPUdbUtil
 	 *        created
 	 * @param collectionName name of collection in which to create table
 	 * @param tableName name of table to create
-	 * @param tableType class name of table type to create
+	 * @param tableType Type schema of table to create
 	 * @return true, if table was created successfully;
 	 *         false, if not because table already exists
 	 * @throws GPUdbException if table didn't exist and failed to be created
 	 */
-	public static boolean createTable(String gpudbUrl, String collectionName, String tableName, Class<? extends RecordObject> tableType) throws GPUdbException
+	public static boolean createTable(String gpudbUrl, String collectionName, String tableName, Type tableType) throws GPUdbException
 	{
 		GPUdb gpudb = new GPUdb(gpudbUrl);
 		
@@ -102,19 +102,18 @@ public class GPUdbUtil
 	 * @param gpudb GPUdb connection to use to create table
 	 * @param collectionName name of collection in which to create table
 	 * @param tableName name of table to create
-	 * @param tableType class name of table type to create
+	 * @param tableType Type schema of table to create
 	 * @return true, if table was created successfully;
 	 *         false, if not because table already exists
 	 * @throws GPUdbException if table didn't exist and failed to be created
 	 */
-	public static boolean createTable(GPUdb gpudb, String collectionName, String tableName, Class<? extends RecordObject> tableType) throws GPUdbException
+	public static boolean createTable(GPUdb gpudb, String collectionName, String tableName, Type tableType) throws GPUdbException
 	{
 		boolean alreadyExists = false;
 
     	try
 		{
-		    String typeId = RecordObject.createType(tableType, gpudb);
-		    gpudb.addKnownType(typeId, tableType);
+    		String typeId = tableType.create(gpudb);
 		    gpudb.createTable(tableName, typeId, GPUdb.options(CreateTableRequest.Options.COLLECTION_NAME, collectionName));
 		}
 		catch (GPUdbException e)

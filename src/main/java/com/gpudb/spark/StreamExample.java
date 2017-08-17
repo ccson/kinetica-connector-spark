@@ -1,21 +1,28 @@
 package com.gpudb.spark;
 
+import com.gpudb.BulkInserter;
+import com.gpudb.ColumnProperty;
+import com.gpudb.GPUdb;
 import com.gpudb.GPUdbException;
+import com.gpudb.GenericRecord;
+import com.gpudb.Type;
 import com.gpudb.spark.dao.AvroWrapper;
-import com.gpudb.spark.dao.PersonRecord;
 import com.gpudb.spark.input.GPUdbReceiver;
 import com.gpudb.spark.output.GPUdbWriter;
 import com.gpudb.spark.util.GPUdbUtil;
+import com.thedeanda.lorem.Lorem;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ThreadLocalRandom;
 
-import org.apache.avro.generic.GenericRecord;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function;
@@ -53,9 +60,10 @@ public final class StreamExample implements Serializable
 	private static final String PROP_SPARK_CORES_MAX = "spark.cores.max";
 	private static final String PROP_SPARK_EXECUTOR_MEMORY = "spark.executor.memory";
 	
+	private static final int INITIALIZATION_DELAY = 30;
 	private static final int NEW_DATA_INTERVAL_SECS = 10;
 	private static final int STREAM_POLL_INTERVAL_SECS = NEW_DATA_INTERVAL_SECS;
-	private static final String[] peopleNames = new String[]{ "John", "Anna", "Andrew" };
+	private static final int INSERT_BATCH_SIZE = 10;
 
 	private String sparkAppName;
 	private String gpudbHost;
@@ -69,6 +77,15 @@ public final class StreamExample implements Serializable
 	private String gpudbSourceTableName;
 	private String gpudbTargetTableName;
 
+	private static Type type = new Type
+	(
+			/** Unique ID of person */
+			new Type.Column("id", Long.class, Arrays.asList(ColumnProperty.DATA, ColumnProperty.PRIMARY_KEY)),
+			/** Name of person */
+			new Type.Column("name", String.class, new String[0]),
+			/** Date of birth of person, in milliseconds since the epoch */
+			new Type.Column("birthDate", Long.class, Arrays.asList(ColumnProperty.TIMESTAMP))
+	);
 
 
 	/**
@@ -83,15 +100,28 @@ public final class StreamExample implements Serializable
 
 	}
 
-	private static List<PersonRecord> getMorePeople()
+	private void addMorePeople() throws GPUdbException
 	{
-		List<PersonRecord> people = new ArrayList<PersonRecord>();
+		List<GenericRecord> people = new ArrayList<>();
 
 		// Create test records
-		for (String personName : peopleNames)
-			people.add(new PersonRecord(ThreadLocalRandom.current().nextInt(0, Integer.MAX_VALUE), personName, System.currentTimeMillis()));
+		for (int personNum = 0; personNum < INSERT_BATCH_SIZE; personNum++)
+		{
+			GenericRecord person = new GenericRecord(type);
+			person.put("id", (long)ThreadLocalRandom.current().nextInt(0, Integer.MAX_VALUE));
+			person.put("name", Lorem.getFirstName());
+			person.put("birthDate", System.currentTimeMillis());
+			people.add(person);
+		}
 		
-		return people;
+		log.info("Writing <{}> records to table <{}>", people.size(), gpudbSourceTableName);
+		for (GenericRecord person : people)
+			log.debug("    Array Item: <{}>", person);
+
+		GPUdb gpudb = new GPUdb(gpudbUrl, new GPUdb.Options().setThreadCount(gpudbThreads));
+		BulkInserter<GenericRecord> bi = new BulkInserter<>(gpudb, gpudbSourceTableName, type, people.size(), GPUdb.options());
+		bi.insert(people);
+		bi.flush();
 	}
 
 	/**
@@ -116,7 +146,7 @@ public final class StreamExample implements Serializable
 			sparkCoresMax = Integer.parseInt(props.getProperty(PROP_SPARK_CORES_MAX));
 			sparkExecutorMemory = props.getProperty(PROP_SPARK_EXECUTOR_MEMORY);
 
-			log.info("Using GPUdb: <" + gpudbUrl + "," + gpudbSourceTableName + "," + gpudbTargetTableName + ">");
+			log.info("Using GPUdb: <{}> <{}> <{}>", gpudbUrl, gpudbSourceTableName, gpudbTargetTableName);
 		}
 	}
 	
@@ -157,29 +187,27 @@ public final class StreamExample implements Serializable
 			@Override
 			public void run()
 			{
-				SparkConf conf = new SparkConf()
-					.set(GPUdbWriter.PROP_GPUDB_HOST,  gpudbHost)
-					.set(GPUdbWriter.PROP_GPUDB_PORT, String.valueOf(gpudbPort))
-					.set(GPUdbWriter.PROP_GPUDB_THREADS, String.valueOf(gpudbThreads))
-					.set(GPUdbWriter.PROP_GPUDB_INSERT_SIZE, String.valueOf(peopleNames.length))
-					.set(GPUdbWriter.PROP_GPUDB_TABLE_NAME, gpudbSourceTableName);
-
-				final GPUdbWriter<PersonRecord> writer = new GPUdbWriter<PersonRecord>(conf);
-
 				try
 				{
+					// Wait for the GPUdbReceiver to be started up
+					Thread.sleep(INITIALIZATION_DELAY * 1000);
+
 					while (true)
 					{
+						// Break before entering new records
 						Thread.sleep(NEW_DATA_INTERVAL_SECS * 1000);
 
 						// Add records to process
-						for (PersonRecord person : getMorePeople())
-							writer.write(person);
+						addMorePeople();
 					}
 				}
 				catch (InterruptedException e)
 				{
 					log.error("Background data-injecting thread interrupted");
+				}
+				catch (GPUdbException ge)
+				{
+					log.error("Error adding records to source table <" + gpudbSourceTableName + ">", ge);
 				}
 			}
 		}.start();
@@ -194,8 +222,8 @@ public final class StreamExample implements Serializable
 	private void runTest() throws GPUdbException
 	{
 		// Create source & destination tables in GPUdb for streaming processing
-		GPUdbUtil.createTable(gpudbUrl, gpudbCollectionName, gpudbSourceTableName, PersonRecord.class);
-		GPUdbUtil.createTable(gpudbUrl, gpudbCollectionName, gpudbTargetTableName, PersonRecord.class);
+		GPUdbUtil.createTable(gpudbUrl, gpudbCollectionName, gpudbSourceTableName, type);
+		GPUdbUtil.createTable(gpudbUrl, gpudbCollectionName, gpudbTargetTableName, type);
 
 		// Launch background process for adding records to source table for
 		//   table monitor to queue to the data stream
@@ -210,12 +238,12 @@ public final class StreamExample implements Serializable
 				JavaReceiverInputDStream<AvroWrapper> inStream = ssc.receiverStream(receiver);
 
 				// Must map AvroWrapper returned by GPUdb table monitor into a
-				//   PersonRecord, as GPUdbWriter can only be of RecordObject,
-				//   which PersonRecord is and AvroWrapper is not
-				JavaDStream<PersonRecord> outStream = inStream.map(new PersonMapFunction());
+				//   map of key/value pairs, which GPUdbWriter requires for
+				//   writing
+				JavaDStream<Map<String,Object>> outStream = inStream.map(new PersonMapFunction());
 
 				// Perform streaming write of inbound records
-				final GPUdbWriter<PersonRecord> writer = new GPUdbWriter<PersonRecord>(sc.getConf());
+				final GPUdbWriter writer = new GPUdbWriter(sc.getConf());
 				writer.write(outStream);
 
 				inStream.print();
@@ -228,34 +256,30 @@ public final class StreamExample implements Serializable
 	
 	/**
 	 * Concrete implementation of the map function, converting incoming wrapped
-	 * PersonRecord objects into instances of PersonRecord, for later insertion
-	 * into GPUdb.
+	 * data objects into maps of key/value pairs, for later insertion into the
+	 * database.
 	 * 
 	 * @author ksutton
 	 */
-	private static class PersonMapFunction implements Function<AvroWrapper, PersonRecord>
+	private static class PersonMapFunction implements Function<AvroWrapper, Map<String,Object>>
 	{
 		private static final long serialVersionUID = 9139870011119019213L;
 
 		/**
-		 * Convert an Avro-wrapped person record from the Spark DStream to a
-		 * PersonRecord
+		 * Convert an Avro-wrapped record from the Spark DStream to a key/value
+		 * pair map
 		 * 
-		 * @param t Avro-wrapped person record from DStream
-		 * @return the converted PersonRecord
+		 * @param t Avro-wrapped record from DStream
+		 * @return the original record converted into a map of key/value pairs
 		 */
 		@Override
-		public PersonRecord call(AvroWrapper t) throws Exception
+		public Map<String,Object> call(AvroWrapper t) throws Exception
 		{
-			PersonRecord record = null;
-			GenericRecord inRecord = t.getGenericRecord();
+			Map<String,Object> record = new HashMap<String,Object>();
+			org.apache.avro.generic.GenericRecord inRecord = t.getGenericRecord();
 
-			record = new PersonRecord
-			(
-				(long)inRecord.get("id"),
-				(String)inRecord.get("name"),
-				(long)inRecord.get("birthDate")
-			);
+			for (Type.Column column : type.getColumns())
+				record.put(column.getName(), inRecord.get(column.getName()));
 
 			return record;
 	   }

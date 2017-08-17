@@ -2,7 +2,8 @@ package com.gpudb.spark.input;
 
 import com.gpudb.GPUdb;
 import com.gpudb.GPUdbException;
-import com.gpudb.RecordObject;
+import com.gpudb.GenericRecord;
+import com.gpudb.Type;
 import com.gpudb.protocol.FilterResponse;
 import com.gpudb.protocol.GetRecordsResponse;
 import com.gpudb.protocol.ShowSystemPropertiesRequest;
@@ -28,9 +29,8 @@ import org.slf4j.LoggerFactory;
  * converting them into object records of the given type
  * 
  * @author dkatz
- * @param <T> Type of object into which GPUdb records will be read
  */
-public class GPUdbReader<T extends RecordObject> implements Serializable
+public class GPUdbReader implements Serializable
 {
 	private static final long serialVersionUID = 3468971635980373796L;
 
@@ -139,22 +139,20 @@ public class GPUdbReader<T extends RecordObject> implements Serializable
 	 * This method will create a temporary filter view, whether an expression is
 	 * given or not, named {@code [tableName].[RandomUUID]}.
 	 * 
-	 * @param recordClass type of object into which each GPUdb record will be
-	 *		converted
 	 * @param expression optional filter expression
 	 * @param context JavaSparkContext used to convert result set to RDD
 	 * 
 	 * @return RDD of the result data set
 	 * @throws GPUdbException if an error occurs reading data from GPUdb
 	 */
-	public JavaRDD<T> readTable(final Class<?> recordClass, String expression, JavaSparkContext context) throws GPUdbException
+	public JavaRDD<Map<String,Object>> readTable(String expression, JavaSparkContext context) throws GPUdbException
 	{
 		final String viewName = tableName + "." + UUID.randomUUID().toString();
 		final Map<String,String> options = new HashMap<String,String>();
 		if ((expression != null) && !expression.isEmpty())
 			options.put("expression", expression);
 
-		log.info("Creating filter <{}> of GPUdb table <{}> of type <{}>...", viewName, tableName, recordClass.getSimpleName());
+		log.info("Creating filter <{}> of GPUdb table <{}>...", viewName, tableName);
 
 		FilterResponse filterResponse = getConn().filter(tableName, viewName, expression, null);
 
@@ -170,21 +168,29 @@ public class GPUdbReader<T extends RecordObject> implements Serializable
 
 		JavaRDD<Long> rdd = context.parallelize(offsetList);
 
+		final Type type = Type.fromTable(getConn(), viewName);
+
 		// Translate each offset into the records in the block starting from
 		//   that offset and containing up to readSize records 
 		return rdd.flatMap
 		(
-			new FlatMapFunction<Long,T>()
+			new FlatMapFunction<Long,Map<String,Object>>()
 			{
 				private static final long serialVersionUID = 1519062387719363984L;
 
 				@Override
-				public List<T> call(Long offset) throws GPUdbException
+				public List<Map<String,Object>> call(Long offset) throws GPUdbException
 				{
+					List<Map<String,Object>> records = new ArrayList<>();
+
 					log.info("Reading GPUdb view <{}> records <{}>-<{}>...", viewName, offset, offset + readSize - 1);
 
-					GetRecordsResponse<T> response = getConn().getRecords(recordClass, viewName, offset, readSize, options);
-					return response.getData();
+					GetRecordsResponse<GenericRecord> response = getConn().getRecords(type, viewName, offset, readSize, options);
+
+					for (GenericRecord genericRecord : response.getData())
+						records.add(new HashMap<>(genericRecord.getDataMap()));
+
+					return records;
 				}
 			}
 		);

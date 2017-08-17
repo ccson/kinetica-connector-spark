@@ -9,13 +9,14 @@ sparkPort=7077
 
 function usage
 {
-	printf "Usage:  %s -t <example_type> -h <spark_host> [-p <spark_port>]\n" $(basename $0)
+	printf "Usage:  %s -t <example_type> [-h <spark_host> [-p <spark_port>]]\n" $(basename $0)
 	printf "Where:\n"
 	printf "        <example_type> - of the following:\n"
 	printf "            batch - to run RDD batch processing\n"
 	printf "            stream - to run streaming processing\n"
 	printf "        <spark_host> - hostname/IP of the Spark master server\n"
 	printf "        <spart_port> - port on which the Spark service is running\n"
+	printf "Note:  if <spark_host> is not given, 'yarn' will be used for Spark master\n"
 	exit 1
 }
 
@@ -72,15 +73,7 @@ do
 done
 shift $((OPTIND-1))
 
-sparkUrl=spark://${sparkHost}:${sparkPort}
-
-[ -z "${sparkHost}" ] && usage
-
-if [ -z "${SPARK_HOME}" ]
-then
-	printf "[ERROR] SPARK_HOME environment variable not set\n"
-	exit 2
-fi
+[ -z "${sparkHost}" ] && sparkUrl=yarn || sparkUrl=spark://${sparkHost}:${sparkPort}
 
 if [ -z "${exampleLib}" ]
 then

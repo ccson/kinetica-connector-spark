@@ -1,8 +1,22 @@
 GPUdb Spark Connector Changelog
 ===============================
 
+Version 6.0.1 - 2017-08-16
+--------------------------
+
+- Updated the Spark connector to run in a distributed yarn configuration
+- Switched to BulkInserter for adding records
+- Used random names in streaming example
+- Created longer delay in streaming example before adding records to the source table, to allow the two to better synchronize
+- Made SPARK_HOST optional, using YARN if not specified
+- Made SPARK_HOME optional
+- Suppressed ZMQ-related warnings
+- Updated Spark connector version to 6.0.1
+
+
 Version 6.0.0 - 2017-01-24
 --------------------------
+
 -   Releasing version
 
 

@@ -1,13 +1,15 @@
 package com.gpudb.spark.output;
 
+import com.gpudb.BulkInserter;
 import com.gpudb.GPUdb;
-import com.gpudb.RecordObject;
-import com.gpudb.protocol.InsertRecordsRequest;
+import com.gpudb.GenericRecord;
+import com.gpudb.Type;
 
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
@@ -21,10 +23,8 @@ import org.slf4j.LoggerFactory;
 /**
  * GPUdb data processor, used in accepting object records or parseable string
  * records of a given type and inserting them into the database
- * 
- * @param <T> type of RecordObject to insert into GPUdb
  */
-public class GPUdbWriter<T extends RecordObject> implements Serializable
+public class GPUdbWriter implements Serializable
 {
 	private static final long serialVersionUID = -5273795273398765842L;
 
@@ -50,8 +50,6 @@ public class GPUdbWriter<T extends RecordObject> implements Serializable
 	private int threads;
 	private String tableName;
 	private int insertSize;
-
-	private List<T> records = new ArrayList<T>();
 
 
 	/**
@@ -88,24 +86,25 @@ public class GPUdbWriter<T extends RecordObject> implements Serializable
 	 * 
 	 * @param rdd RDD to write to GPUdb
 	 */
-	public void write(JavaRDD<T> rdd)
+	public void write(JavaRDD<Map<String,Object>> rdd)
 	{
 		rdd.foreachPartition
 		(
-			new VoidFunction<Iterator<T>>()
+			new VoidFunction<Iterator<Map<String,Object>>>()
 			{
 				private static final long serialVersionUID = 1519062387719363984L;
+				private List<Map<String,Object>> records = new ArrayList<>();
 				
 				@Override
-				public void call(Iterator<T> tSet)
+				public void call(Iterator<Map<String,Object>> recordSet)
 				{
-					while (tSet.hasNext())
+					while (recordSet.hasNext())
 					{
-						T t = tSet.next();
-						if (t != null)
-							write(t);
+						Map<String,Object> record = recordSet.next();
+						if (record != null)
+							write(records, record);
 					}
-					flush();
+					flush(records);
 				}
 			}
 		);
@@ -116,31 +115,33 @@ public class GPUdbWriter<T extends RecordObject> implements Serializable
 	 * 
 	 * @param dstream data stream to write to GPUdb
 	 */
-	public void write(JavaDStream<T> dstream)
+	public void write(JavaDStream<Map<String,Object>> dstream)
 	{
+		final List<Map<String,Object>> records = new ArrayList<>();
+
 		dstream.foreachRDD
 		(
-			new Function<JavaRDD<T>, Void>()
+			new Function<JavaRDD<Map<String,Object>>, Void>()
 			{
 				private static final long serialVersionUID = -6215198148637505774L;
 
 				@Override
-				public Void call(JavaRDD<T> rdd) throws Exception
+				public Void call(JavaRDD<Map<String,Object>> rdd) throws Exception
 				{
 					rdd.foreachPartition
 					(
-						new VoidFunction<Iterator<T>>()
+						new VoidFunction<Iterator<Map<String,Object>>>()
 						{
-							private static final long serialVersionUID = 1519062387719363984L;
-							
+							private static final long serialVersionUID = -4370039011790218715L;
+
 							@Override
-							public void call(Iterator<T> tSet)
+							public void call(Iterator<Map<String,Object>> recordSet)
 							{
-								while (tSet.hasNext())
+								while (recordSet.hasNext())
 								{
-									T t = tSet.next();
-									if (t != null)
-										write(t);
+									Map<String,Object> record = recordSet.next();
+									if (record != null)
+										write(records, record);
 								}
 							}
 						}
@@ -152,40 +153,52 @@ public class GPUdbWriter<T extends RecordObject> implements Serializable
 	}
 
 	/**
-	 * Writes a record to GPUdb
-	 *
-	 * @param t record to write to GPUdb
+	 * Queues a record for writing to GPUdb
+	 * 
+	 * @param records queued list of records to which record will be added
+	 * @param record record to write to GPUdb
 	 */
-	public void write(T t)
+	public void write(List<Map<String,Object>> records, Map<String,Object> record)
 	{
-		records.add(t);
-		log.debug("Added <{}> to write queue", t);
+		records.add(record);
+		log.debug("Added <{}> to write queue", record);
 
 		if (records.size() >= insertSize)
-			flush();
+			flush(records);
 	}
 
 	/**
 	 * Flushes the set of accumulated records, writing them to GPUdb
+	 * 
+	 * @param records queue of records to write to GPUdb
 	 */
-	public void flush()
+	public void flush(List<Map<String,Object>> records)
 	{
 		try
 		{
 			log.debug("Creating new GPUdb...");
 			GPUdb gpudb = new GPUdb("http://" + host + ":" + port, new GPUdb.Options().setThreadCount(threads));
+			
+			Type type = Type.fromTable(gpudb, tableName);
 	
-			List<T> recordsToInsert = records;
-			records = new ArrayList<T>();
-	
-			log.info("Writing <{}> records to table <{}>", recordsToInsert.size(), tableName);
-			for (T record : recordsToInsert)
+			log.info("Writing <{}> records to table <{}>", records.size(), tableName);
+			List<GenericRecord> genericRecords = new ArrayList<>();
+			for (Map<String,Object> record : records)
+			{
+				GenericRecord genericRecord = new GenericRecord(type);
+				
+				for (Type.Column column : type.getColumns())
+					genericRecord.put(column.getName(), record.get(column.getName()));
+
+				genericRecords.add(genericRecord);
 				log.debug("    Array Item: <{}>", record);
-	
-			InsertRecordsRequest<T> insertRequest = new InsertRecordsRequest<T>();
-			insertRequest.setData(recordsToInsert);
-			insertRequest.setTableName(tableName);
-			gpudb.insertRecords(insertRequest);
+			}
+
+			BulkInserter<GenericRecord> bi = new BulkInserter<>(gpudb, tableName, type, insertSize, GPUdb.options());
+			bi.insert(genericRecords);
+			bi.flush();
+			
+			records.clear();
 		}
 		catch (Exception ex)
 		{

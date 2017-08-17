@@ -1,15 +1,18 @@
 package com.gpudb.spark;
 
-import com.gpudb.spark.dao.PersonRecord;
+import com.gpudb.ColumnProperty;
+import com.gpudb.Type;
 import com.gpudb.spark.input.GPUdbReader;
 import com.gpudb.spark.output.GPUdbWriter;
 import com.gpudb.spark.util.GPUdbUtil;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -36,10 +39,8 @@ import org.slf4j.LoggerFactory;
  * 
  * @author ksutton
  */
-public class BatchExample implements Serializable
+public class BatchExample
 {
-	private static final long serialVersionUID = -3290252846935753374L;
-
 	private static final Logger log = LoggerFactory.getLogger(BatchExample.class);
 
 	private static final String PROP_FILE = "example.properties";
@@ -64,7 +65,17 @@ public class BatchExample implements Serializable
 	private int batchRecordCount;
 	private long exampleStartTime;
 	
-	List<PersonRecord> people = new ArrayList<>();
+	private static Type type = new Type
+	(
+			/** Unique ID of person */
+			new Type.Column("id", Long.class, Arrays.asList(ColumnProperty.DATA, ColumnProperty.PRIMARY_KEY)),
+			/** Name of person */
+			new Type.Column("name", String.class, new String[0]),
+			/** Date of birth of person, in milliseconds since the epoch */
+			new Type.Column("birthDate", Long.class, Arrays.asList(ColumnProperty.TIMESTAMP))
+	);
+
+	List<Map<String,Object>> people = new ArrayList<>();
 
 
 	BatchExample()
@@ -110,7 +121,13 @@ public class BatchExample implements Serializable
 		int startID = ThreadLocalRandom.current().nextInt(0, Integer.MAX_VALUE);
 
 		for (int batchRecordNum = 0; batchRecordNum < batchRecordCount; batchRecordNum++)
-			people.add(new PersonRecord(startID + batchRecordNum, Lorem.getFirstName(), System.currentTimeMillis()));
+		{
+			Map<String,Object> person = new HashMap<>();
+			person.put("id", (long)startID + batchRecordNum);
+			person.put("name", Lorem.getFirstName());
+			person.put("birthDate", System.currentTimeMillis());
+			people.add(person);
+		}
 	}
 
 	private JavaSparkContext connectSpark()
@@ -143,20 +160,21 @@ public class BatchExample implements Serializable
 		try (JavaSparkContext sc = connectSpark())
 		{
 			// Create table for test records in GPUdb
-			GPUdbUtil.createTable(gpudbUrl, gpudbCollectionName, gpudbTableName, PersonRecord.class);
+			GPUdbUtil.createTable(gpudbUrl, gpudbCollectionName, gpudbTableName, type);
 
 			// Add records to process
-			JavaRDD<PersonRecord> rdd = sc.parallelize(people);
+			JavaRDD<Map<String,Object>> rdd = sc.parallelize(people);
 
 			// Write records through Spark to GPUdb
-			final GPUdbWriter<PersonRecord> writer = new GPUdbWriter<PersonRecord>(sc.getConf());
+			final GPUdbWriter writer = new GPUdbWriter(sc.getConf());
 			writer.write(rdd);
 
 			// Read records from GPUdb via Spark connector,
 			//   caching the result RDD so that validation checks don't cause a
 			//   re-querying for the data
-			final GPUdbReader<PersonRecord> reader = new GPUdbReader<PersonRecord>(sc.getConf());
-			JavaRDD<PersonRecord> rddPeopleFound = reader.readTable(PersonRecord.class, "birthDate >= " + exampleStartTime, sc).cache();
+			final GPUdbReader reader = new GPUdbReader(sc.getConf());
+			JavaRDD<Map<String,Object>> rddPeopleFound = reader.readTable("birthDate >= " + exampleStartTime, sc).cache();
+
 			numFound = rddPeopleFound.count();
 			numMatch = rddPeopleFound.intersection(rdd).count();
 			
