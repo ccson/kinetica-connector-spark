@@ -1,0 +1,75 @@
+import com.kinetica.spark.util.SparkKineticaLoader
+import com.kinetica.util.table.SparkKineticaTableBuilder
+import com.kinetica.spark.util.LoaderParams
+
+
+:paste
+val df = spark.read.format("csv")
+        .option("header", true) //reading the headers
+        .option("inferSchema", "true")
+        .option("delimiter", ",")
+        .csv("/root/2008.csv");
+
+
+val lp = new LoaderParams("http://ip-172-30-1-87.ec2.internal:9191", "airline", false,"",10000,true,true,"admin","admin", 4);
+
+
+SparkKineticaLoader.KineticaWriter(df,lp,true);
+
+SparkKineticaTableBuilder.KineticaMapWriter(df, "airline3", lp)
+
+-- set log level to debug
+spark.sparkContext.setLogLevel("DEBUG")
+
+
+
+
+
+import com.kinetica.spark.util.SparkKineticaLoader
+import com.kinetica.util.table.SparkKineticaTableBuilder
+import com.kinetica.spark.util.LoaderParams
+
+
+val lp = new LoaderParams("http://ip-172-30-1-87.ec2.internal:9191", "jdbc:simba://ip-172-30-1-87.ec2.internal:9292;ParentSet=MASTER", "test", false,"",10000,true,true,"admin","admin", 4);
+
+
+
+val df = Seq(
+  (1, true),
+  (1, true),
+  (1, false),
+  (1, false)).toDF("id", "booly")
+
+SparkKineticaTableBuilder.KineticaMapWriter(df, lp)
+
+
+SparkKineticaLoader.KineticaWriter(df,lp,true);
+
+
+
+----
+
+import com.kinetica.spark.util.SparkKineticaLoader
+import com.kinetica.util.table.SparkKineticaTableBuilder
+import com.kinetica.spark.util.LoaderParams
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types._
+
+val df = Seq(
+    (1, "2014/01/01 23:00:01"),
+    (1, "2014/11/31 12:40:32"),
+    (1, "2016/12/29 09:54:00"),
+    (1, "2016/05/09 10:12:43")).toDF("id", "date")
+
+val res = df.select($"id", $"date", unix_timestamp($"date", "yyyy/MM/dd HH:mm:ss").cast(TimestampType).as("timestamp"))
+
+
+
+SparkKineticaTableBuilder.KineticaMapWriter(res, lp)
+
+
+val lp = new LoaderParams("http://ip-172-30-1-87.ec2.internal:9191", "jdbc:simba://ip-172-30-1-87.ec2.internal:9292;ParentSet=MASTER", "test", false,"",10000,true,true,"admin","admin", 4);
+
+
+
+SparkKineticaLoader.KineticaWriter(res,lp,true);
